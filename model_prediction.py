@@ -1,7 +1,7 @@
 import torch
 
 from model.ResCnn import ResidualStacks
-from pre_process import NyDiffNormalizer
+from pre_process import PreProcess
 import pickle
 import numpy as np
 import pandas as pd
@@ -30,7 +30,7 @@ df = pd.read_csv('gold.csv', index_col='time', parse_dates=True)
 window = config['number_days'] * config['tick_per_day']
 a = 8 # -a*config['tick_per_day']
 input_to_predict = df.iloc[-1 * window-a*config['tick_per_day']:].copy()
-proc = NyDiffNormalizer(input_to_predict.iloc[:, :])
+proc = PreProcess(input_to_predict.iloc[:, :])
 nn_input_numpy = proc.obs()  # add dummy dim for batch
 nn_input_torch = torch.from_numpy(np.expand_dims(nn_input_numpy, 0)).type(torch.float32)
 nn_input_torch = torch.permute(nn_input_torch, (0, 2, 1))

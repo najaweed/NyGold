@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from pre_process import NyDiffNormalizer
+from pre_process import PreProcess
 
 
 class NyDataset(Dataset):
@@ -35,7 +35,7 @@ class NyDataset(Dataset):
 
             x_df = self.time_series.iloc[t:(t + self.window_temporal), :].copy()
             # print(x_df)
-            ny_normal = NyDiffNormalizer(x_df,step_share=self.step_share)
+            ny_normal = PreProcess(x_df, step_share=self.step_share)
             obs = ny_normal.obs()
             target = ny_normal.target()
             if t == 0:
