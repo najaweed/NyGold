@@ -85,5 +85,3 @@ class LitNyData(pl.LightningDataModule, ):
                                            ))
             start_index = end_index
         return data_loaders
-
-

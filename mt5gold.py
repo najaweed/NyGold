@@ -11,6 +11,7 @@ class GoldData:
         self.ny_df = self.group_data('1D', self.session_transform(self.raw_df))
 
     def save_csv(self, path: str = 'gold.csv'):
+        self.ny_df = self.ny_df.iloc[:-3,:]
         self.ny_df.to_csv(path, index_label='time')
 
     @staticmethod
@@ -61,6 +62,6 @@ class GoldData:
         return pd.DataFrame(pd.concat(df_list, axis=0).sort_index())
 
 
-gold = GoldData()
+gold = GoldData(start_year=2017)
 print(gold.ny_df)
 gold.save_csv('training/gold.csv')
