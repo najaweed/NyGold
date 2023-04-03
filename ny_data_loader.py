@@ -12,7 +12,6 @@ class NyDataset(Dataset):
                  data_temporal: pd.DataFrame,
                  config: dict,
                  ):
-
         self.time_series = data_temporal
         self.step_predict = 1
         self.step_share = config['step_share']
@@ -20,6 +19,7 @@ class NyDataset(Dataset):
         self.num_days = config['number_days']
         self.window_temporal = self.tick_per_day * self.num_days
         self.obs, self.target = self.split_observation_prediction()
+        #print(self.target)
 
     def __len__(self):
         return self.obs.shape[0]
@@ -40,9 +40,8 @@ class NyDataset(Dataset):
             target = ny_normal.target()
             if t == 0:
                 in_shape = obs.shape
-                target_shape = target[0].shape
-
-            if target_shape == target_shape and obs.shape == in_shape:
+            #print(target)
+            if obs.shape == in_shape and target[0] is not None:
                 x.append(obs)
                 y.append(target)
 
@@ -69,19 +68,27 @@ class LitNyData(pl.LightningDataModule, ):
         return self.val_loader
 
     def _gen_data_loaders(self):
-        split_index = [int(self.df.shape[0] * self.config['split'][i] / 10) for i in range(len(self.config['split']))]
+        #split_index = [int(self.df.shape[0] * self.config['split'][i] / 10) for i in range(len(self.config['split']))]
+        split_index = int(self.df.shape[0] * self.config['split'][0] / 10)
         start_index = 0
         data_loaders = []
-        for i in range(len(self.config['split'])):
-            end_index = split_index[i] + start_index
-            dataset = NyDataset(self.df.iloc[start_index:end_index, :], self.config)
-            data_loaders.append(DataLoader(dataset=dataset,
-                                           batch_size=self.config['batch_size'],
-                                           #num_workers=8,
-                                           drop_last=True,
-                                           # pin_memory=True,
-                                           shuffle=False,
 
-                                           ))
-            start_index = end_index
+        dataset = NyDataset(self.df.iloc[:split_index, :], self.config)
+        data_loaders.append(DataLoader(dataset=dataset,
+                                       batch_size=self.config['batch_size'],
+                                       #num_workers=8,
+                                       drop_last=True,
+                                       # pin_memory=True,
+                                       shuffle=False,
+
+                                       ))
+        dataset = NyDataset(self.df.iloc[split_index:, :], self.config)
+        data_loaders.append(DataLoader(dataset=dataset,
+                                       batch_size=self.config['batch_size'],
+                                       # num_workers=8,
+                                       drop_last=True,
+                                       # pin_memory=True,
+                                       shuffle=False,
+
+                                       ))
         return data_loaders

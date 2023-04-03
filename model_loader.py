@@ -1,6 +1,8 @@
 import torch
 import pytorch_lightning as pl
 
+from testing_desk.AdaLoss import AdaBound
+
 
 class LitNetModel(pl.LightningModule, ):
 
@@ -21,7 +23,8 @@ class LitNetModel(pl.LightningModule, ):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1, verbose=True)
+        return [optimizer], [scheduler]
 
     def training_step(self, train_batch, batch_idx):
         # prepare inputs
@@ -31,12 +34,9 @@ class LitNetModel(pl.LightningModule, ):
         x = self.nn_model(x_in)
         # criterion
         target = train_batch[1]
-        if self.config['step_share'] > 0:
-            target = torch.permute(target, (0, 2, 1))
-        if self.is_encoder:
-            loss = torch.sqrt(self.loss(x, x_in))
-        else:
-            loss = torch.sqrt(self.loss(x, target))
+        print(target[:, 0], target[:, 1:])
+        breakpoint()
+        loss = torch.sqrt(self.loss(x, target))
         # logger
         metrics = {'loss': loss, }
         self.log_dict(metrics)
@@ -50,12 +50,10 @@ class LitNetModel(pl.LightningModule, ):
         x = self.nn_model(x_in)
         # criterion
         target = val_batch[1]
-        if self.config['step_share'] > 0:
-            target = torch.permute(target, (0, 2, 1))
-        if self.is_encoder:
-            loss = torch.sqrt(self.loss(x, x_in))
-        else:
-            loss = torch.sqrt(self.loss(x, target))
+        print(target[:, 0], target[:, 1:])
+
+        breakpoint()
+        loss = torch.sqrt(self.loss(x, target))
         # logger
         metrics = {'val_loss': loss, }
         print('val_loss', loss)
