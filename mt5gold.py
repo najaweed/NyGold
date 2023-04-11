@@ -3,7 +3,7 @@ import MetaTrader5 as mt5
 from datetime import datetime
 
 
-class GoldData:
+class NyGoldData:
     def __init__(self,
                  start_year: int = 2019
                  ):
@@ -11,7 +11,7 @@ class GoldData:
         self.target_df = None
         self.ny_df = self.group_data('1D', self.session_transform(self.raw_df))
         self.labels = self.gen_label()
-        self.join_labels()
+        # self.join_labels()
 
     def join_labels(self):
         self.ny_df.join(self.labels)
@@ -36,7 +36,7 @@ class GoldData:
             quit()
         utc_from = datetime(start_year, 1, 1, )
         utc_to = datetime.now()
-        ticks = pd.DataFrame(mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M30, utc_from, utc_to))
+        ticks = pd.DataFrame(mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H1, utc_from, utc_to))
         # ticks = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H1, s, shift_5m))
         ticks['time'] = pd.to_datetime(ticks['time'], unit='s')
         ticks = ticks.set_index('time')
@@ -118,8 +118,62 @@ class GoldData:
         return label_df
 
 
-gold = GoldData(start_year=2019)
-print(gold.ny_df)
-# print(gold.gen_label())
+#gold = NyGoldData(start_year=2016)
+#print(gold.ny_df)
+#print(gold.gen_label())
+#gold.save_csv('training/gold')
+class ImbalancedGold:
+    def __init__(self,
+                 start_year: int = 2019
+                 ):
+        self.raw_df = self.get_ohlc(start_year=start_year)
+        print(self._imb_df())
+        self.imb_df = self._imb_df()
+    def save_csv(self, path: str = 'imb_gold'):
+        self.imb_df.to_csv(path + '.csv', index_label='time')
+        # self.labels.to_csv(path+'_label'+'.csv', index_label='time')
+    @staticmethod
+    def get_ohlc(start_year: int = 2019, symbol: str = 'EURUSD', ):
+        if not mt5.initialize():
+            print("initialize() failed, error code =", mt5.last_error())
+            quit()
+        utc_from = datetime(start_year, 1, 1, )
+        utc_to = datetime.now()
+        ticks = pd.DataFrame(mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M15, utc_from, utc_to))
+        # ticks = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H1, s, shift_5m))
+        ticks['time'] = pd.to_datetime(ticks['time'], unit='s')
+        ticks = ticks.set_index('time')
+        return ticks
 
-gold.save_csv('training/gold')
+    def _imb_df(self):
+        df = self.raw_df
+        imb_max = df[['tick_volume']].max()[0]
+        imb_vol = 0
+        last_index = df.index[0]
+        list_df_imb = []
+        for i in df.index:
+            if imb_vol <= imb_max:
+                imb_vol += df.loc[i, 'tick_volume']
+
+            elif imb_vol > imb_max:
+                chunk_df = df.loc[last_index:i, :]
+                chunk_df = self.__gen_ohlc(chunk_df)
+                list_df_imb.append(chunk_df)
+                imb_vol = 0
+                last_index = i
+        return pd.DataFrame(pd.concat(list_df_imb, axis=1).sort_index()).transpose()
+
+    @staticmethod
+    def __gen_ohlc(df):
+        x_df = df.iloc[-1, :].copy()
+        x_df['open'] = df.open[0]
+        x_df['high'] = df.high.max()
+        x_df['low'] = df.low.min()
+        x_df['close'] = df.close[-1]
+        #x_df['imb_volume'] = df.tick_volume.sum()
+        x_df['inner_momentum'] = (df.close[-1] - df.open[0]) / (df.high.max() - df.low.min())
+        return x_df[['open', 'high', 'low', 'close', 'inner_momentum']]
+
+
+imb_gold = ImbalancedGold(start_year=2021)
+imb_gold.save_csv('training/imb_eurusd')
