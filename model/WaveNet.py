@@ -22,7 +22,6 @@ class DilatedCausalConv1d(torch.nn.Module):
 
     def forward(self, x):
         output = self.conv(x)
-
         return output
 
 
@@ -37,7 +36,7 @@ class ResidualBlock(torch.nn.Module):
         super(ResidualBlock, self).__init__()
         super(ResidualBlock, self).__init__()
 
-        self.dilated = DilatedCausalConv1d(res_channels, dilation=dilation)
+        self.dilated = CausalConv1d(res_channels, res_channels, dilation=dilation, kernel_size=2)
         self.conv_res = torch.nn.Conv1d(res_channels, res_channels, 1)
         self.conv_skip = torch.nn.Conv1d(res_channels, skip_channels, 1)
 
@@ -51,7 +50,6 @@ class ResidualBlock(torch.nn.Module):
         :return:
         """
         output = self.dilated(x)
-
         # PixelCNN gate
         gated_tanh = self.gate_tanh(output)
         gated_sigmoid = self.gate_sigmoid(output)
@@ -78,8 +76,7 @@ class ResidualStack(torch.nn.Module):
 
         self.layer_size = config['num_wave_layer']
         self.stack_size = config['num_stack_wave_layer']
-
-        self.res_blocks = self.stack_res_block(config['res_channels'], config['skip_channels'])
+        self.res_blocks = nn.ModuleList(self.stack_res_block(config['res_channels'], config['skip_channels']))
 
     @staticmethod
     def _residual_block(res_channels, skip_channels, dilation):
@@ -94,20 +91,23 @@ class ResidualStack(torch.nn.Module):
         return block
 
     def build_dilations(self):
-        dilations = []
+        stacks = []
         # 5 = stack[layer1, layer2, layer3, layer4, layer5]
         for s in range(0, self.stack_size):
+            dilations = []
             # 10 = layer[dilation=1, dilation=2, 4, 8, 16, 32, 64, 128, 256, 512]
             for l_ in range(0, self.layer_size):
                 dilations.append(2 ** l_)
-        return dilations
+            stacks.append(dilations)
+        return stacks
 
     def stack_res_block(self, res_channels, skip_channels):
         res_blocks = []
-        dilations = self.build_dilations()
-        for dilation in dilations:
-            block = self._residual_block(res_channels, skip_channels, dilation)
-            res_blocks.append(block)
+        stacks = self.build_dilations()
+        for stack in stacks:
+            for dilation in stack:
+                block = self._residual_block(res_channels, skip_channels, dilation)
+                res_blocks.append(block)
         return res_blocks
 
     def forward(self, x, skip_size):
@@ -126,16 +126,22 @@ class PredictorBlock(torch.nn.Module):
                  out_features,
                  ):
         super(PredictorBlock, self).__init__()
-        self.predictor = nn.Linear(in_features=in_features,
-                                   out_features=out_features,
-                                   bias=True)
-
-    def init_weights(self):
-        for name, param in self.predictor.named_parameters():
-            if 'bias' in name:
-                nn.init.constant_(param, 0.0)
-            else:
-                nn.init.uniform_(param, -0.1, 0.1)
+        self.linear_1 = nn.Linear(in_features=in_features,
+                                  out_features=out_features,
+                                  bias=True)
+        self.predictor = nn.Sequential(
+            # nn.Linear(in_features=in_features,
+            #           out_features=2*in_features,
+            #           bias=True),
+            # nn.ReLU(),
+            # nn.Linear(in_features=2*in_features,
+            #           out_features=in_features,
+            #           bias=True),
+            # nn.ReLU(),
+            nn.Linear(in_features=in_features,
+                      out_features=out_features,
+                      bias=False),
+        )
 
     def forward(self, x):
         x = self.predictor(x)
@@ -147,36 +153,32 @@ class WaveNet(torch.nn.Module):
                  config
                  ):
         super(WaveNet, self).__init__()
-        self.len_seq_out = config['len_seq_out']
-
-        self.causal = CausalConv1d(config['in_channels'], config['res_channels'], kernel_size=1)
+        self.len_seq_out = config['step_prediction']+config['step_share']
+        self.causal = CausalConv1d(config['in_channels'], config['res_channels'], config['kernel_size'])
         self.res_stack = ResidualStack(config)
-        self.predict = PredictorBlock(config['skip_channels'] * config['len_seq_out'],
-                                      config['out_channels'] * config['len_seq_out'],
-                                      )
+
         self.config = config
 
     def forward(self, x):
         x = self.causal(x)
         skip_connections = self.res_stack(x, self.len_seq_out)
         x = torch.sum(skip_connections, dim=0)
-        x = torch.flatten(x, start_dim=1)
-        x = self.predict(x)
-        if self.config['len_seq_out'] > 1:
-            x = x.view(x.shape[0], self.config['out_channels'], self.config['len_seq_out'], )
-        return x
-
+        return x[:, :, -self.len_seq_out:]
 #
-# x_ = torch.rand(1, 5, 200)
+# x_ = torch.rand(1, 5, 400)
 # x_config = {
 #     'in_channels': 5,
 #     'res_channels': 16,
-#     'skip_channels': 8,
+#     'skip_channels': 2,
 #     'out_channels': 2,
-#     'len_seq_out': 1,
-#     'num_wave_layer': 4,
-#     'num_stack_wave_layer': 3,
+#     'num_wave_layer': 8,
+#     'num_stack_wave_layer': 8,
+#     'step_prediction': 1,
+#     'step_share': 3,
+#     'kernel_size': 8,
 # }
+#
 # net = WaveNet(x_config)
 # skip_ = net(x_)  # skip_size=3)
 # print(skip_.shape)
+# print(net.state_dict().keys())

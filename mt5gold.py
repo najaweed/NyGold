@@ -9,8 +9,8 @@ class NyGoldData:
                  ):
         self.raw_df = self.get_ohlc(start_year=start_year)
         self.target_df = None
-        self.ny_df = self.group_data('1D', self.session_transform(self.raw_df))
-        self.labels = self.gen_label()
+        # self.ny_df = self.group_data('1D', self.session_transform(self.raw_df))
+        # self.labels = self.gen_label()
         # self.join_labels()
 
     def join_labels(self):
@@ -44,7 +44,7 @@ class NyGoldData:
 
     def session_transform(self, x_df, sessions=None):
         if sessions is None:
-            sessions = [('00:01', '7:00'), ('07:01', '13:00'), ('13:01', '23:59')]
+            sessions = [('00:01', '7:00'), ('07:01', '13:00'), ('13:01', '18:00'), ('18:01', '23:59')]
         ny_df = []
         ohlc = {
             'open': 'first',
@@ -73,7 +73,7 @@ class NyGoldData:
         df_list = []
         for group_name, df_group in df.groupby(pd.Grouper(freq=freq, key='time')):
             g_df = df_group.drop(columns=['time'])
-            if len(g_df) == 3:  # 5days*5weeks
+            if len(g_df) == 4:  # 5days*5weeks
                 df_list.append(g_df)
         return pd.DataFrame(pd.concat(df_list, axis=0).sort_index())
 
@@ -118,10 +118,6 @@ class NyGoldData:
         return label_df
 
 
-#gold = NyGoldData(start_year=2016)
-#print(gold.ny_df)
-#print(gold.gen_label())
-#gold.save_csv('training/gold')
 class ImbalancedGold:
     def __init__(self,
                  start_year: int = 2019
@@ -129,9 +125,11 @@ class ImbalancedGold:
         self.raw_df = self.get_ohlc(start_year=start_year)
         print(self._imb_df())
         self.imb_df = self._imb_df()
+
     def save_csv(self, path: str = 'imb_gold'):
         self.imb_df.to_csv(path + '.csv', index_label='time')
         # self.labels.to_csv(path+'_label'+'.csv', index_label='time')
+
     @staticmethod
     def get_ohlc(start_year: int = 2019, symbol: str = 'EURUSD', ):
         if not mt5.initialize():
@@ -170,10 +168,33 @@ class ImbalancedGold:
         x_df['high'] = df.high.max()
         x_df['low'] = df.low.min()
         x_df['close'] = df.close[-1]
-        #x_df['imb_volume'] = df.tick_volume.sum()
+        # x_df['imb_volume'] = df.tick_volume.sum()
         x_df['inner_momentum'] = (df.close[-1] - df.open[0]) / (df.high.max() - df.low.min())
         return x_df[['open', 'high', 'low', 'close', 'inner_momentum']]
 
 
-imb_gold = ImbalancedGold(start_year=2021)
-imb_gold.save_csv('training/imb_eurusd')
+# gold = NyGoldData(start_year=2016)
+# print(gold.ny_df)
+# print(gold.gen_label())
+# gold.save_csv('training/hyper_params_data/4_gold')
+def get_ohlc(start_year: int = 2010, symbol: str = 'XAUUSD', ):
+    if not mt5.initialize():
+        print("initialize() failed, error code =", mt5.last_error())
+        quit()
+    utc_from = datetime(start_year, 1, 1, )
+    utc_to = datetime.now()
+    ticks = pd.DataFrame(mt5.copy_rates_range(symbol, mt5.TIMEFRAME_D1, utc_from, utc_to))
+    # ticks = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H1, s, shift_5m))
+    ticks['time'] = pd.to_datetime(ticks['time'], unit='s')
+    ticks = ticks.set_index('time')
+    ticks = ticks.fillna(method='bfill')
+    ticks = ticks.fillna(method='ffill')
+    return ticks[['open', 'high', 'low', 'close']]
+
+
+df = get_ohlc()
+print(df)
+print(df.isnull().values.any())
+df.to_csv('training/hyper_params_data/D_gold.csv', index_label='time')
+# imb_gold = ImbalancedGold(start_year=2021)
+# imb_gold.save_csv('training/imb_eurusd')

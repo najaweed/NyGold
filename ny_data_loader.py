@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from pre_process import PreProcess
+from testing_desk.PreProcess import PreProcess
 
 
 class NyDataset(Dataset):
@@ -16,15 +16,9 @@ class NyDataset(Dataset):
                  ):
         self.time_series = data_temporal
         self.step_predict = 1
-        self.tick_per_day = config['tick_per_day']
-        self.num_days = config['number_days']
         self.config = config
-        self.window_temporal = self.tick_per_day * self.num_days
-        if config['is_newyork']:
-            self.obs, self.target = self.ny_split_observation_prediction()
-        else:
-            self.obs, self.target = self.split_observation_prediction()
-        # print(self.target)
+        self.window_temporal = config['window_temporal']
+        self.obs, self.target = self.split_observation_prediction()
 
     def __len__(self):
         return self.obs.shape[0]
@@ -39,50 +33,18 @@ class NyDataset(Dataset):
         for t in range(0, len(self.time_series) - self.window_temporal):
 
             x_df = self.time_series.iloc[t:(t + self.window_temporal), :].copy()
-            ny_normal = PreProcess(x_df, task=self.config['task_network'])
+            ny_normal = PreProcess(x_df, self.config['step_prediction'], self.config['step_share'])
             obs = ny_normal.obs()
             target = ny_normal.target()
             if t == 0:
                 in_shape = obs.shape
-            if obs.shape == in_shape :
+            if obs.shape == in_shape:
                 x.append(obs)
                 y.append(target)
 
-        x = torch.tensor(np.array(x, dtype=np.float32), dtype=torch.float32)
-        y = torch.tensor(np.array(y, dtype=np.float32), dtype=torch.float32)
+        x = torch.tensor(np.array(x, dtype=np.float64), dtype=torch.float64)
+        y = torch.tensor(np.array(y, dtype=np.float64), dtype=torch.float64)
 
-        return x, y
-
-    def ny_split_observation_prediction(self):
-        x, y = [], []
-        # print(self.time_series)
-        in_shape, target_shape = None, None
-        for t in range(0, len(self.time_series) - self.window_temporal + self.tick_per_day - 1, self.tick_per_day):
-
-            x_df = self.time_series.iloc[t:(t + self.window_temporal), :].copy()
-            # print(x_df)
-            d = datetime.strptime(str(x_df.index[-1]), '%Y-%m-%d %H:%M:%S')
-            # print(t, t + self.window_temporal)
-            # print(d)
-            if d.hour != 2:
-                print(d)
-                print(x_df)
-                print(t, t + self.window_temporal)
-                breakpoint()
-            else:
-                ny_normal = PreProcess(x_df, task=self.config['task_network'])
-                obs = ny_normal.obs()
-                target = ny_normal.target()
-                if t == 0:
-                    in_shape = obs.shape
-                if obs.shape == in_shape and target is not None:
-                    x.append(obs)
-                    y.append(target)
-
-        x = torch.tensor(np.array(x, dtype=np.float32), dtype=torch.float32)
-        y = torch.tensor(np.array(y, dtype=np.float32), dtype=torch.float32)
-        if len(x.shape) < 3:
-            x = x.unsqueeze(-1)
         return x, y
 
 

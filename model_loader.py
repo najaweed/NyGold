@@ -1,7 +1,6 @@
 import torch
 import pytorch_lightning as pl
 
-from testing_desk.RMSLELoss import RMSLELoss
 
 
 class LitNetModel(pl.LightningModule, ):
@@ -20,12 +19,12 @@ class LitNetModel(pl.LightningModule, ):
         # model initialization
         self.nn_model = net_model(config)
         self.loss_mse = torch.nn.MSELoss()
-        #self.loss_ce = torch.nn.BCELoss()#torch.nn.CrossEntropyLoss()
+        self.l1_loss = torch.nn.L1Loss()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1, verbose=True)
-        return optimizer#[optimizer], [scheduler]
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, )
+        # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1, verbose=True)
+        return optimizer  # [optimizer], [scheduler]
 
     def training_step(self, train_batch, batch_idx):
         # prepare inputs
@@ -35,7 +34,7 @@ class LitNetModel(pl.LightningModule, ):
         x = self.nn_model(x_in)
         # criterion
         target = train_batch[1]
-        loss = self._calculate_loss(x, target,)
+        loss = torch.sqrt(self.loss_mse(x, target[:, :2]))  # self._calculate_loss(x, target,)
         # logger
         metrics = {'loss': loss, }
         self.log_dict(metrics)
@@ -49,21 +48,26 @@ class LitNetModel(pl.LightningModule, ):
         x = self.nn_model(x_in)
         # criterion
         target = val_batch[1]
-        loss = self._calculate_loss(x, target,)
+        # print(x[-1,...] ,'',target[-1,...])
+        loss = torch.sqrt(self.loss_mse(x, target[:, :2]))  # self._calculate_loss(x, target,)
+
         # logger
-        metrics = {'val_loss': loss, }
+        ac_loss =self._inv_normal_target(x, target)
+        ac_metric = {'price_loss':ac_loss}
+        #print('val loss', loss)
+        self.log_dict({'val_loss': loss,'price_loss':ac_metric })
+        return {'val_loss': loss,'price_loss':ac_metric }
 
-        self.log_dict(metrics)
-        return metrics
+    def _inv_normal_target(self, nn_output, target):
+        high_low = target[:, 4:]
+        #print('out net', nn_output)
+        #print('target', target[:, :2])
 
-    def _calculate_loss(self, x, target, ):
-        # print(target.shape)
+        nn_output *= target[:, 2:3]
+        nn_output += target[:, 3:4]
+        #print('inv net', nn_output, nn_output.shape)
+        #print('inv target', high_low, high_low.shape)
 
-        if self.mode == 'predict':
-
-            return torch.sqrt(self.loss_mse(x, target))
-        elif self.mode == 'classifier':
-            target_predict = target[:, 0]
-            target_classify = target[:, 1:]
-            loss_classify = self.loss_ce(x, target_classify)
-            return loss_classify
+        #print('diff', nn_output - high_low)
+        #print('l1diff', self.l1_loss(nn_output, high_low))
+        return self.l1_loss(nn_output, high_low)

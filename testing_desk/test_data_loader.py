@@ -4,17 +4,12 @@ import pickle
 from torch.utils.data import DataLoader
 
 # # READ DATA
-df = pd.read_csv('imb_eurusd.csv', index_col='time', parse_dates=True)
-
+df = pd.read_csv('gold.csv', index_col='time', parse_dates=True)
+df = df.iloc[:1000,:]
 
 with open('../training/hyper_params_data/config_ResForcast.pkl', 'rb') as f:
     config = pickle.load(f)
 config['is_newyork'] = False
-dataloader = LitNyData(df, config)
+dataset = NyDataset(df, config)
 
-for i,(obs, target) in enumerate(dataloader.train_dataloader()):
-    print(i)
-    #print(obs,target)
-    #print(obs.shape,target.shape)
-    if i ==0:
-        break
+print(dataset.obs)
