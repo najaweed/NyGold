@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 import pickle
-from ny_data_loader import LitNyData
+from testing_desk.ny_data_loader import LitNyData
 
 # # READ DATA
-df = pd.read_csv('training/hyper_params_data/gold.csv', index_col='time', parse_dates=True)
+df = pd.read_csv('../training/hyper_params_data/gold.csv', index_col='time', parse_dates=True)
 df = df.iloc[:80*3*5, :]
 
 # READ DATA
@@ -48,5 +48,5 @@ config_CasualRnn['is_newyork'] = False
 config = config_data_loader | config_CasualRnn  # == {**config_data_loader , **config_conv}
 print(config)
 
-with open('training/hyper_params_data/config_ResForcast.pkl', 'wb') as f:
+with open('../training/hyper_params_data/config_ResForcast.pkl', 'wb') as f:
     pickle.dump(config, f)

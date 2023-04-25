@@ -177,7 +177,7 @@ class ImbalancedGold:
 # print(gold.ny_df)
 # print(gold.gen_label())
 # gold.save_csv('training/hyper_params_data/4_gold')
-def get_ohlc(start_year: int = 2010, symbol: str = 'XAUUSD', ):
+def get_ohlc(start_year: int = 2021, symbol: str = 'XAUUSD', ):
     if not mt5.initialize():
         print("initialize() failed, error code =", mt5.last_error())
         quit()
@@ -192,9 +192,11 @@ def get_ohlc(start_year: int = 2010, symbol: str = 'XAUUSD', ):
     return ticks[['open', 'high', 'low', 'close']]
 
 
-df = get_ohlc()
+df = get_ohlc(start_year=2018)
 print(df)
 print(df.isnull().values.any())
-df.to_csv('training/hyper_params_data/D_gold.csv', index_label='time')
+if not df.isnull().values.any():
+    df.to_csv('database/D_gold.csv', index_label='time')
+# df.to_csv('training/hyper_params_data/D_gold.csv', index_label='time')
 # imb_gold = ImbalancedGold(start_year=2021)
 # imb_gold.save_csv('training/imb_eurusd')

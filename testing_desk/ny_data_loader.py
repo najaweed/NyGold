@@ -1,12 +1,11 @@
-from datetime import datetime
-
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from testing_desk.PreProcess import PreProcess
+# from testing_desk.PreProcessX import PreProcess
+from preprocess.ProProcessY import PreProcess
 
 
 class NyDataset(Dataset):
@@ -15,7 +14,6 @@ class NyDataset(Dataset):
                  config: dict,
                  ):
         self.time_series = data_temporal
-        self.step_predict = 1
         self.config = config
         self.window_temporal = config['window_temporal']
         self.obs, self.target = self.split_observation_prediction()
@@ -42,8 +40,8 @@ class NyDataset(Dataset):
                 x.append(obs)
                 y.append(target)
 
-        x = torch.tensor(np.array(x, dtype=np.float64), dtype=torch.float64)
-        y = torch.tensor(np.array(y, dtype=np.float64), dtype=torch.float64)
+        x = torch.tensor(np.array(x, dtype=np.float32), dtype=torch.float32)
+        y = torch.tensor(np.array(y, dtype=np.float32), dtype=torch.float32)
 
         return x, y
 
@@ -77,7 +75,7 @@ class LitNyData(pl.LightningDataModule, ):
                                        # num_workers=8,
                                        drop_last=False,
                                        # pin_memory=True,
-                                       shuffle=True,
+                                       shuffle=self.config['shuffle'],
 
                                        ))
         # print('df valid', self.df.iloc[split_index + 1:, :])
@@ -87,7 +85,7 @@ class LitNyData(pl.LightningDataModule, ):
                                        # num_workers=1,
                                        drop_last=False,
                                        # pin_memory=True,
-                                       shuffle=True,
+                                       shuffle=self.config['shuffle'],
 
                                        ))
         return data_loaders

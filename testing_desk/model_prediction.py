@@ -1,12 +1,9 @@
 import torch
-
-from model.ResCnn import ResForcast
-from model.WaveNet import WaveNet
-from model.ConvNet import ConvNet
-from testing_desk.PreProcess import PreProcess
-import pickle
 import numpy as np
 import pandas as pd
+
+from model.DLinear import DDLinear
+from preprocess.ProProcessY import PreProcess
 
 
 def load_model(c_model, c_config, path_params):
@@ -23,38 +20,41 @@ def load_model(c_model, c_config, path_params):
     return x_model
 
 
-config_data_loader = {
+config = {
     # config dataset and dataloader
-    'batch_size': 1,
-    'learning_rate': 1e-5,
-    'window_temporal': 30,
+    'batch_size': 8,
+    'learning_rate': 1e-4,
+    'window_temporal': 300,
     'split': (9, 1),
-    'in_channels': 4,
-    'step_prediction': 2,
-    'step_share': 0,
-    'out_channels': 2,
+    'step_prediction': 5,
+    'step_share': 5,
+    'shuffle': True,
 }
-model_config = {
-    'hidden_channels': 4,
-    'kernel_size': 4,
+
+d_config = {
+    'seq_len': config['window_temporal'] - config['step_prediction'],
+    'predict_len': config['step_prediction'] + config['step_share'],
 }
-config = config_data_loader | model_config
-model = load_model(ConvNet, config, "checkpoints/ResForcast_params.ckpt")
-xdf = pd.read_csv('hyper_params_data/imb_gold.csv', index_col='time', parse_dates=True)
-w_window = config['window_temporal']  # * config['tick_per_day']
+config = config | d_config
+config['batch_size'] = 1
+
+model = load_model(DDLinear, config, "checkpoints/ResForcast_params.ckpt")
+xdf = pd.read_csv('hyper_params_data/D_gold.csv', index_col='time', parse_dates=True)
+w_window = config['window_temporal']
 input_to_predict = None
 import matplotlib.pyplot as plt
 
-for a in range(1, 20):
-    input_to_predict = xdf.iloc[-(a + 1) * w_window:-a * w_window].copy()
-
+for a in range(1, 100, 1):
+    input_to_predict = xdf.iloc[-(a + 2 * w_window):-(a + w_window)].copy()
     proc = PreProcess(input_to_predict, step_prediction=config['step_prediction'], step_share=config['step_share'])
     nn_input_torch = torch.from_numpy(np.expand_dims(proc.obs(), 0)).type(torch.float32)
-    nn_input_torch = torch.permute(nn_input_torch, (0, 2, 1))
     x = model(nn_input_torch)
-
-    _target = proc.raw_target_df[['high', 'low']].to_numpy()
-    _predict = proc.inverse_normal(x.detach().numpy())
+    x = x.detach().numpy()  # [0, 0, :]
+    print(x.shape)
+    _target = proc.raw_target_df.mean(axis=1).to_numpy()
+    inv_norm_tar = proc.c_normal.inverse_transform(x)
+    inv_norm_tar = inv_norm_tar.flatten()
+    _predict = inv_norm_tar  # proc.inverse_diff(inv_norm_tar, proc.raw_target_df.open[0])
     if config['step_share'] + config['step_prediction'] == 1:
         _predict = _predict.flatten()
         _target = _target.flatten()
@@ -64,10 +64,9 @@ for a in range(1, 20):
     else:
         if config['step_share'] > 1:
             plt.axvline(config['step_share'])
-        plt.plot(_predict[:, 0], c='r')
-        plt.plot(_target[:, 0], '.-', c='r')
-        plt.plot(_predict[:, 1], c='b')
-        plt.plot(_target[:, 1], '.-', c='b')
+        plt.plot(_predict.flatten(), c='r')
+        plt.plot(_target.flatten(), '--', c='g')
+
     plt.show()
 #
 # class BackTester:

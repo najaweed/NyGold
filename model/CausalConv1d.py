@@ -9,7 +9,7 @@ class CausalConv1d(torch.nn.Conv1d):
                  stride=1,
                  dilation=1,
                  groups=1,
-                 bias=True):
+                 bias=False):
         self.__padding = (kernel_size - 1) * dilation
 
         super(CausalConv1d, self).__init__(

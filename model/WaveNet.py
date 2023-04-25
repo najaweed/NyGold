@@ -153,24 +153,29 @@ class WaveNet(torch.nn.Module):
                  config
                  ):
         super(WaveNet, self).__init__()
-        self.len_seq_out = config['step_prediction']+config['step_share']
-        self.causal = CausalConv1d(config['in_channels'], config['res_channels'], config['kernel_size'])
+        self.len_seq_out = config['step_prediction'] + config['step_share']
+        self.causal_1 = CausalConv1d(config['in_channels'], config['res_channels'], config['kernel_size'])
+        self.causal_2 = CausalConv1d(config['skip_channels'], config['out_channels'], config['kernel_size'])
+        self.relu = nn.ReLU()
         self.res_stack = ResidualStack(config)
-
+        self.batch_norm = nn.BatchNorm1d(config['in_channels'])
         self.config = config
 
     def forward(self, x):
-        x = self.causal(x)
+        x = self.batch_norm(x)
+        x = self.causal_1(x)
+        x = self.relu(x)
         skip_connections = self.res_stack(x, self.len_seq_out)
         x = torch.sum(skip_connections, dim=0)
-        return x[:, :, -self.len_seq_out:]
-#
-# x_ = torch.rand(1, 5, 400)
+        x = self.causal_2(x)
+        return x[:, 0, -self.len_seq_out:]
+
+# x_ = torch.rand(1, 3, 400)
 # x_config = {
-#     'in_channels': 5,
+#     'in_channels': 3,
 #     'res_channels': 16,
 #     'skip_channels': 2,
-#     'out_channels': 2,
+#     'out_channels': 1,
 #     'num_wave_layer': 8,
 #     'num_stack_wave_layer': 8,
 #     'step_prediction': 1,

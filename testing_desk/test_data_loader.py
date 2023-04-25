@@ -1,15 +1,22 @@
-from ny_data_loader import LitNyData, NyDataset
+from testing_desk.ny_data_loader import NyDataset
 import pandas as pd
-import pickle
+import torch
 from torch.utils.data import DataLoader
 
 # # READ DATA
-df = pd.read_csv('gold.csv', index_col='time', parse_dates=True)
-df = df.iloc[:1000,:]
-
-with open('../training/hyper_params_data/config_ResForcast.pkl', 'rb') as f:
-    config = pickle.load(f)
-config['is_newyork'] = False
-dataset = NyDataset(df, config)
-
-print(dataset.obs)
+df = pd.read_csv('D_gold.csv', index_col='time', parse_dates=True)
+df = df.iloc[:400, :]
+config_data_loader = {
+    # config dataset and dataloader
+    'batch_size': 1,
+    'learning_rate': 1e-3,
+    'window_temporal': 200,
+    'split': (9, 1),
+    'in_channels': 1,
+    'step_prediction': 5,
+    'step_share': 1,
+    'out_channels': 1,
+}
+dataset = NyDataset(df, config_data_loader)
+t_Dataset = torch.utils.data.TensorDataset(dataset.obs, dataset.target)
+print(t_Dataset.tensors)
